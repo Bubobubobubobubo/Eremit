@@ -1,7 +1,7 @@
 use mlua::{Error, Lua, MultiValue};
 use rustyline::DefaultEditor;
 use std::error::Error as OtherError;
-use std::io::{stdin, stdout, Write};
+use std::io::{stdin, stdout, self, Write};
 use std::thread::sleep;
 use std::time::Duration;
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
@@ -70,6 +70,54 @@ fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
   Ok(conn_out)
 }
 
+fn print_state(state: &mut State) {
+    state.capture_app_state();
+
+    let time = state.link.clock_micros();
+    let enabled = match state.link.is_enabled() {
+        true => "yes",
+        false => "no ",
+    }
+    .to_string();
+    let num_peers = state.link.num_peers();
+    let start_stop = match state.link.is_start_stop_sync_enabled() {
+        true => "yes",
+        false => "no ",
+    };
+    let playing = match state.session_state.is_playing() {
+        true => "[playing]",
+        false => "[stopped]",
+    };
+    let tempo = state.session_state.tempo();
+    let beats = state.session_state.beat_at_time(time, state.quantum);
+    let phase = state.session_state.phase_at_time(time, state.quantum);
+    let mut metro = String::with_capacity(state.quantum as usize);
+    for i in 0..state.quantum as usize {
+        if i > phase as usize {
+            metro.push('O');
+        } else {
+            metro.push('X');
+        }
+    }
+
+    // let mut stdout = io::stdout();
+    // queue!(
+    //     stdout,
+    //     cursor::SavePosition,
+    //     terminal::Clear(terminal::ClearType::FromCursorDown),
+    //     Print(format!("{:<7} | ", enabled)),
+    //     Print(format!("{:<9} | ", num_peers)),
+    //     Print(format!("{:<7} | ", state.quantum.trunc())),
+    //     Print(format!("{:<3}   {:<9} | ", start_stop, playing)),
+    //     Print(format!("{:<7.2} | ", tempo)),
+    //     Print(format!("{:<8.2} | ", beats)),
+    //     Print(metro.to_string()),
+    //     cursor::RestorePosition,
+    // )
+    // .unwrap();
+    // stdout.flush().unwrap();
+}
+
 fn main() -> Result<(), Box<dyn OtherError>> {
     println!(r#"███████╗██████╗ ███████╗███╗   ███╗██╗████████╗
 ██╔════╝██╔══██╗██╔════╝████╗ ████║██║╚══██╔══╝
@@ -78,11 +126,18 @@ fn main() -> Result<(), Box<dyn OtherError>> {
 ███████╗██║  ██║███████╗██║ ╚═╝ ██║██║   ██║   
 ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝   ╚═╝"#);
 
+    // Starting Ableton Link
+    let mut state = State::new();
+    let time = state.link.clock_micros();
+    state.link.enable(true);
+
+    // Creating Lua and setting up globals
     let lua = Lua::new();
     let globals = lua.globals();
     let mut editor = DefaultEditor::new().expect("Failed to create editor");
-    let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
 
+    // Setting up a MIDI connexion
+    let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
     match setup_midi() {
         Ok(connection) => {
             conn_out = Arc::new(Mutex::new(Some(connection)));
@@ -90,6 +145,7 @@ fn main() -> Result<(), Box<dyn OtherError>> {
         Err(err) => println!("Error {}", err),
     }
 
+    // TEST: sending a note (blocks the thread because of sleep)
     let note = lua.create_function(move |_, (note, velocity, channel): (Option<u8>, Option<u8>, Option<u8>)| -> LuaResult<()> {
         let mut note: Option<u8> = Some(note.unwrap_or(60));
         let mut velocity: Option<u8> = Some(velocity.unwrap_or(64));
@@ -109,7 +165,17 @@ fn main() -> Result<(), Box<dyn OtherError>> {
     })?;
     globals.set("note", note)?;
 
+    let num_peers = lua.create_function(move |_, ()| -> LuaResult<u32> {
+        Ok(state.link.num_peers().try_into().unwrap())
+    })?;
+    globals.set("num_peers", num_peers)?;
 
+    let tempo = lua.create_function(move |_, ()| -> LuaResult<f64> {
+        Ok(state.session_state.tempo())
+    })?;
+    globals.set("tempo", tempo)?;
+
+    // REPL loop
     loop {
         let mut prompt = "> ";
         let mut line = String::new();
