@@ -1,7 +1,7 @@
 use mlua::{Error, Lua, MultiValue};
 use rustyline::DefaultEditor;
 use std::error::Error as OtherError;
-use std::io::{stdin, stdout, self, Write};
+use std::io::{stdin, stdout, Write};
 use std::thread::sleep;
 use std::time::Duration;
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
@@ -99,26 +99,11 @@ fn print_state(state: &mut State) {
             metro.push('X');
         }
     }
-
-    // let mut stdout = io::stdout();
-    // queue!(
-    //     stdout,
-    //     cursor::SavePosition,
-    //     terminal::Clear(terminal::ClearType::FromCursorDown),
-    //     Print(format!("{:<7} | ", enabled)),
-    //     Print(format!("{:<9} | ", num_peers)),
-    //     Print(format!("{:<7} | ", state.quantum.trunc())),
-    //     Print(format!("{:<3}   {:<9} | ", start_stop, playing)),
-    //     Print(format!("{:<7.2} | ", tempo)),
-    //     Print(format!("{:<8.2} | ", beats)),
-    //     Print(metro.to_string()),
-    //     cursor::RestorePosition,
-    // )
-    // .unwrap();
-    // stdout.flush().unwrap();
 }
 
 fn main() -> Result<(), Box<dyn OtherError>> {
+    let exit: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+
     println!(r#"███████╗██████╗ ███████╗███╗   ███╗██╗████████╗
 ██╔════╝██╔══██╗██╔════╝████╗ ████║██║╚══██╔══╝
 █████╗  ██████╔╝█████╗  ██╔████╔██║██║   ██║   
@@ -175,12 +160,21 @@ fn main() -> Result<(), Box<dyn OtherError>> {
     })?;
     globals.set("tempo", tempo)?;
 
-    // REPL loop
+    let quit = {
+        let exit = exit.clone();
+        lua.create_function(move |_, ()| -> LuaResult<()> {
+            let mut exit = exit.lock().unwrap();
+            *exit = true;
+            Ok(())
+        })?
+    };
+    globals.set("quit", quit)?;
+
     loop {
-        let mut prompt = "> ";
+        let mut prompt = "=> ";
         let mut line = String::new();
 
-        loop {
+        while !*exit.lock().unwrap() {
             match editor.readline(prompt) {
                 Ok(input) => line.push_str(&input),
                 Err(_) => return Err(From::from("Failed to read line")),
@@ -188,7 +182,7 @@ fn main() -> Result<(), Box<dyn OtherError>> {
 
             match lua.load(&line).eval::<MultiValue>() {
                 Ok(values) => {
-                    editor.add_history_entry(line).unwrap();
+                    editor.add_history_entry(line.clone()).unwrap();
                     println!(
                         "{}",
                         values
@@ -197,7 +191,7 @@ fn main() -> Result<(), Box<dyn OtherError>> {
                             .collect::<Vec<_>>()
                             .join("\t")
                     );
-                    break;
+                    continue;
                 }
                 Err(Error::SyntaxError {
                     incomplete_input: true,
@@ -209,9 +203,12 @@ fn main() -> Result<(), Box<dyn OtherError>> {
                 }
                 Err(e) => {
                     eprintln!("error: {}", e);
-                    break;
+                    return Ok(());
                 }
             }
+        }
+        if *exit.lock().unwrap() {
+            return Ok(());
         }
     }
 }
