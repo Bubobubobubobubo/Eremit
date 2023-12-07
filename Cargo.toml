@@ -9,3 +9,4 @@ edition = "2021"
 mlua = { version = "0.9.1", features = ["luajit52"]}
 rustyline = "13.0.0"
 midir = "0.9.1"
+rusty_link = "0.4.1"

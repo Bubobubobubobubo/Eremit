@@ -7,6 +7,34 @@ use std::time::Duration;
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
 use mlua::{Result as LuaResult};
 use std::sync::{Arc, Mutex};
+use rusty_link::{AblLink, SessionState};
+
+pub struct State {
+    pub link: AblLink,
+    pub session_state: SessionState,
+    pub running: bool,
+    pub quantum: f64,
+}
+
+impl State {
+    pub fn new() -> Self {
+        Self {
+            link: AblLink::new(120.),
+            session_state: SessionState::new(),
+            running: true,
+            quantum: 4.,
+        }
+    }
+
+    pub fn capture_app_state(&mut self) {
+        self.link.capture_app_session_state(&mut self.session_state);
+    }
+
+    pub fn commit_app_state(&mut self) {
+        self.link.commit_app_session_state(&self.session_state);
+    }
+}
+
 
 fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
     let midi_out = MidiOutput::new("My Test Output")?;
