@@ -127,7 +127,21 @@ fn main() -> Result<(), Box<dyn OtherError>> {
         Ok(connection) => {
             conn_out = Arc::new(Mutex::new(Some(connection)));
         },
-        Err(err) => println!("Error {}", err),
+        Err(err) => {
+            println!("Error {}", err);
+            let mut success = false;
+            while !success {
+                match setup_midi() {
+                    Ok(connection) => {
+                        conn_out = Arc::new(Mutex::new(Some(connection)));
+                        success = true;
+                    },
+                    Err(err) => {
+                        println!("Error {}", err);
+                    }
+                }
+            }
+        }
     }
 
     // TEST: sending a note (blocks the thread because of sleep)
@@ -175,11 +189,11 @@ fn main() -> Result<(), Box<dyn OtherError>> {
         let mut line = String::new();
 
         while !*exit.lock().unwrap() {
+            line = String::new();
             match editor.readline(prompt) {
                 Ok(input) => line.push_str(&input),
                 Err(_) => return Err(From::from("Failed to read line")),
             }
-
             match lua.load(&line).eval::<MultiValue>() {
                 Ok(values) => {
                     editor.add_history_entry(line.clone()).unwrap();
@@ -193,17 +207,9 @@ fn main() -> Result<(), Box<dyn OtherError>> {
                     );
                     continue;
                 }
-                Err(Error::SyntaxError {
-                    incomplete_input: true,
-                    ..
-                }) => {
-                    // continue reading input and append it to `line`
-                    line.push_str("\n"); // separate input lines
-                    prompt = ">> ";
-                }
                 Err(e) => {
                     eprintln!("error: {}", e);
-                    return Ok(());
+                    continue;
                 }
             }
         }
