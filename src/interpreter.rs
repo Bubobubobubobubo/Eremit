@@ -1,10 +1,12 @@
-use mlua::{Lua, MultiValue, Function};
+//use mlua::{Lua, MultiValue, Function as LuaFunction, FromLuaMulti};
+use mlua::prelude::*;
+use mlua::MultiValue;
 use rustyline::DefaultEditor;
 use mlua::Result as LuaResult;
 use std::sync::{Arc, Mutex};
 
 pub struct Interpreter {
-    lua: Lua,
+    pub lua: Lua,
     exit: Arc<Mutex<bool>>,
     editor: DefaultEditor
 }
@@ -14,7 +16,6 @@ impl Interpreter {
         let exit = Arc::new(Mutex::new(false));
         let lua = Lua::new();
         let editor = DefaultEditor::new().expect("Failed to create editor");
-
         Interpreter {
             lua,
             exit,
@@ -31,7 +32,6 @@ impl Interpreter {
             *exit = true;
             Ok(())
         })?;
-
         globals.set("quit", quit)?;
         loop {
              let prompt = "=> ";
@@ -67,9 +67,25 @@ impl Interpreter {
          }
     }
 
-    pub fn add_function(&self, name: &str, func: Function) -> LuaResult<()> {
-        let globals = self.lua.globals();
-        globals.set(name, func)?;
+    pub fn register_function<'lua, F, A, R>(&'lua self, name: &str, function: F) -> LuaResult<()>
+    where
+        F: Fn(&'lua Lua, A) -> LuaResult<R>,
+        F: 'static,
+        A: FromLuaMulti<'lua>,
+        R: IntoLuaMulti<'lua>,
+    {
+        let func = self.lua.create_function(function)?;
+        self.lua.globals().set(name, func)?;
         Ok(())
+    }
+
+    pub fn register_void_function<'lua, F>(&'lua self, name: &str, function: F) -> LuaResult<()>
+    where
+        F: Fn() + 'static,
+    {
+        self.register_function(name, move |_lua, ()| {
+            function();
+            Ok(())
+        })
     }
 }
