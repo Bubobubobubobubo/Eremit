@@ -19,5 +19,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     conn_out = midi::setup_midi_connection(conn_out);
     let mut interpreter = interpreter::Interpreter::new();
     let _ = interpreter.run();
+    println!("{}", ascii::GOODBYE);
     Ok(())
 }
