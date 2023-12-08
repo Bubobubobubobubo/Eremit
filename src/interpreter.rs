@@ -1,4 +1,3 @@
-//use mlua::{Lua, MultiValue, Function as LuaFunction, FromLuaMulti};
 use mlua::prelude::*;
 use mlua::MultiValue;
 use rustyline::DefaultEditor;
@@ -88,4 +87,13 @@ impl Interpreter {
             Ok(())
         })
     }
+
+    pub fn register_value<'lua, T>(&'lua self, name: &str, value: T) -> LuaResult<()>
+    where
+        T: IntoLua<'lua>,
+    {
+        self.lua.globals().set(name, value)?;
+        Ok(())
+    }
+
 }
