@@ -49,5 +49,17 @@ impl AbeLinkState {
   pub fn commit_app_state(&mut self) {
     self.link.commit_app_session_state(&self.session_state);
   }
+
+  pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    // Loop that captures the session state every 10ms
+    loop {
+      if !self.running {
+        return Ok(());
+      }
+      self.capture_app_state();
+      tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+  }
+
 }
 

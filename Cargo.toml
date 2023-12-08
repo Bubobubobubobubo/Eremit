@@ -11,3 +11,6 @@ mlua = { version = "0.9.1", features = ["luajit52"]}
 rustyline = "13.0.0"
 midir = "0.9.1"
 rusty_link = "0.4.1"
+confy = "0.5.1"
+serde = "1.0.193"
+serde_derive = "1.0.193"
