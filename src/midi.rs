@@ -1,10 +1,37 @@
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
-use std::error::Error;
 use std::io::{stdin, stdout, Write};
+use std::error::Error;
+use std::result::Result as StdResult;
+use std::sync::{Arc, Mutex};
 
-pub fn setup_midi() -> Result<MidiOutputConnection, Box<dyn Error>> {
+pub fn setup_midi_connection(conn_out: Arc<Mutex<Option<MidiOutputConnection>>>) -> Arc<Mutex<Option<MidiOutputConnection>>> {
+    match setup_midi() {
+        Ok(connection) => {
+            *conn_out.lock().unwrap() = Some(connection);
+        },
+        Err(err) => {
+            println!("Error {}", err);
+            let mut success = false;
+            while !success {
+                match setup_midi() {
+                    Ok(connection) => {
+                        *conn_out.lock().unwrap() = Some(connection);
+                        success = true;
+                    },
+                    Err(err) => {
+                        println!("Error {}", err);
+                    }
+                }
+            }
+        }
+    }
+    conn_out
+}
+
+ 
+
+pub fn setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
     let midi_out = MidiOutput::new("My Test Output")?;
-
     // Get an output port (read from console if multiple are available)
     let out_ports = midi_out.ports();
     let out_port: &MidiOutputPort = match out_ports.len() {
