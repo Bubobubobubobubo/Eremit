@@ -8,7 +8,8 @@ use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
 use mlua::{Result as LuaResult};
 use std::sync::{Arc, Mutex};
 use rusty_link::{AblLink, SessionState};
-
+mod ascii;
+mod midi;
 
 /// Return the current unix time as a std::time::Duration
 fn current_unix_time() -> Duration {
@@ -58,53 +59,12 @@ impl AbeLinkState {
   }
 }
 
-
-fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
-    let midi_out = MidiOutput::new("My Test Output")?;
-
-    // Get an output port (read from console if multiple are available)
-    let out_ports = midi_out.ports();
-    let out_port: &MidiOutputPort = match out_ports.len() {
-        0 => return Err("no output port found".into()),
-        1 => {
-            println!(
-                "Choosing the only available output port: {}",
-                midi_out.port_name(&out_ports[0]).unwrap()
-            );
-            &out_ports[0]
-        }
-        _ => {
-            println!("\nAvailable output ports:");
-            for (i, p) in out_ports.iter().enumerate() {
-                println!("{}: {}", i, midi_out.port_name(p).unwrap());
-            }
-            print!("Please select output port: ");
-            stdout().flush()?;
-            let mut input = String::new();
-            stdin().read_line(&mut input)?;
-            out_ports
-                .get(input.trim().parse::<usize>()?)
-                .ok_or("invalid output port selected")?
-        }
-    };
-    println!("\nOpening connection");
-    let conn_out = midi_out.connect(out_port, "midir-test")?;
-    // Return the conn_out
-  Ok(conn_out)
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn OtherError>> {
     // let mut exit: bool = false;
     let mut exit = Arc::new(Mutex::new(false));
 
-
-    println!(r#"███████╗██████╗ ███████╗███╗   ███╗██╗████████╗
-██╔════╝██╔══██╗██╔════╝████╗ ████║██║╚══██╔══╝
-█████╗  ██████╔╝█████╗  ██╔████╔██║██║   ██║   
-██╔══╝  ██╔══██╗██╔══╝  ██║╚██╔╝██║██║   ██║   
-███████╗██║  ██║███████╗██║ ╚═╝ ██║██║   ██║   
-╚══════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝   ╚═╝"#);
+    println!("{}", ascii::banner);
 
     // Starting Ableton Link
     let clock = Arc::new(Mutex::new(AbeLinkState::new()));
@@ -117,7 +77,7 @@ async fn main() -> Result<(), Box<dyn OtherError>> {
 
     // Setting up a MIDI connexion
     let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
-    match setup_midi() {
+    match midi::setup_midi() {
         Ok(connection) => {
             conn_out = Arc::new(Mutex::new(Some(connection)));
         },
@@ -125,7 +85,7 @@ async fn main() -> Result<(), Box<dyn OtherError>> {
             println!("Error {}", err);
             let mut success = false;
             while !success {
-                match setup_midi() {
+                match midi::setup_midi() {
                     Ok(connection) => {
                         conn_out = Arc::new(Mutex::new(Some(connection)));
                         success = true;

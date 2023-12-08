@@ -1,6 +1,8 @@
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
+use std::error::Error;
+use std::io::{stdin, stdout, Write};
 
-fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
+pub fn setup_midi() -> Result<MidiOutputConnection, Box<dyn Error>> {
     let midi_out = MidiOutput::new("My Test Output")?;
 
     // Get an output port (read from console if multiple are available)
@@ -33,4 +35,3 @@ fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
     // Return the conn_out
   Ok(conn_out)
 }
-
