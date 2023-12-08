@@ -13,13 +13,17 @@ mod config;
 #[tokio::main]
 /// Entry point of the program
 async fn main() -> Result<(), Box<dyn Error>> {
-    let cfg: config::EremitConfig = confy::load("eremit", None)?;
     println!("{}", ascii::BANNER);
+    let cfg: config::EremitConfig = confy::load("eremit", None)?;
+    // let clock = Arc::new(Mutex::new(clock::AbeLinkState::new()));
+    let mut abe_link_state = clock::AbeLinkState::new();
+    // Use tokio::spawn to run the run method concurrently
+    let abe_link_handle = tokio::spawn(async move {
+        abe_link_state.run().await.unwrap_or_else(|err| {
+            eprintln!("Error in AbeLinkState run: {:?}", err);
+        });
+    });
 
-    let clock = Arc::new(Mutex::new(clock::AbeLinkState::new()));
-    // clock.lock().unwrap().run().await?;
-
-    // Setting up a MIDI connexion
     let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
     conn_out = midi::setup_midi_connection(conn_out);
 
@@ -32,13 +36,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     let _ = interpreter.register_function("baba", test_function);
     let _ = interpreter.register_value("clock", 1);
-    let _ = interpreter.register_function("start", move|lua, ()| {
-        let clock = clock.lock().unwrap();
-        clock.link.enable(true);
-        Ok(())
-    });
-
-    // Expose Unix Time
     fn get_unix_time(_lua: &Lua, _args: ()) -> LuaResult<f64> {
         Ok(clock::current_unix_time().as_secs_f64())
     }

@@ -2,6 +2,8 @@ use rusty_link::{AblLink, SessionState};
 use std::time::{Duration,  SystemTime, UNIX_EPOCH};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::interval;
+
 
 /// Return the current unix time as a std::time::Duration
 pub fn current_unix_time() -> Duration {
@@ -51,15 +53,21 @@ impl AbeLinkState {
   }
 
   pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-    // Loop that captures the session state every 10ms
-    loop {
-      if !self.running {
-        return Ok(());
+      // Create a recurring timer that triggers every 10ms
+      let mut interval = interval(Duration::from_millis(10));
+
+      // Loop that captures the session state at regular intervals
+      loop {
+          // Wait for the timer to trigger
+          interval.tick().await;
+
+          if !self.running {
+              return Ok(());
+          }
+
+          self.capture_app_state();
       }
-      self.capture_app_state();
-      tokio::time::sleep(Duration::from_millis(10)).await;
-    }
   }
 
-}
 
+}

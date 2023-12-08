@@ -5,4 +5,3 @@ pub struct EremitConfig {
     version: u8,
     port: String,
 }
-
