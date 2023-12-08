@@ -1,38 +1,61 @@
-use mlua::{Error, Lua, MultiValue};
+use mlua::{Lua, MultiValue};
 use rustyline::DefaultEditor;
 use std::error::Error as OtherError;
 use std::io::{stdin, stdout, Write};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration,  SystemTime, UNIX_EPOCH};
 use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
 use mlua::{Result as LuaResult};
 use std::sync::{Arc, Mutex};
 use rusty_link::{AblLink, SessionState};
 
-pub struct State {
-    pub link: AblLink,
-    pub session_state: SessionState,
-    pub running: bool,
-    pub quantum: f64,
+
+/// Return the current unix time as a std::time::Duration
+fn current_unix_time() -> Duration {
+  let current_unix_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+  return current_unix_time;
 }
 
-impl State {
-    pub fn new() -> Self {
-        Self {
-            link: AblLink::new(120.),
-            session_state: SessionState::new(),
-            running: true,
-            quantum: 4.,
-        }
-    }
+pub struct AbeLinkStateContainer {
+  pub abelink: Arc<Mutex<AbeLinkState>>,
+}
 
-    pub fn capture_app_state(&mut self) {
-        self.link.capture_app_session_state(&mut self.session_state);
-    }
+pub struct AbeLinkState {
+  pub link: AblLink,
+  pub session_state: SessionState,
+  pub running: bool,
+  pub quantum: f64,
+}
 
-    pub fn commit_app_state(&mut self) {
-        self.link.commit_app_session_state(&self.session_state);
+impl AbeLinkState {
+  pub fn new() -> Self {
+    Self {
+      link: AblLink::new(120.0),
+      session_state: SessionState::new(),
+      running: true,
+      quantum: 4.0,
     }
+  }
+
+  pub fn unix_time_at_next_phase(&self) -> u64 {
+    let link_time_stamp = self.link.clock_micros();
+    let quantum = self.quantum;
+    let beat = self.session_state.beat_at_time(link_time_stamp, quantum);
+    let phase = self.session_state.phase_at_time(link_time_stamp, quantum);
+    let internal_time_at_next_phase = self.session_state.time_at_beat(beat + (quantum - phase), quantum);
+    let time_offset = Duration::from_micros((internal_time_at_next_phase - link_time_stamp) as u64);
+    let current_unix_time = current_unix_time();
+    let unix_time_at_next_phase = (current_unix_time + time_offset).as_millis();
+    return unix_time_at_next_phase as u64;
+  }
+
+  pub fn capture_app_state(&mut self) {
+    self.link.capture_app_session_state(&mut self.session_state);
+  }
+
+  pub fn commit_app_state(&mut self) {
+    self.link.commit_app_session_state(&self.session_state);
+  }
 }
 
 
@@ -65,44 +88,16 @@ fn setup_midi() -> Result<MidiOutputConnection, Box<dyn OtherError>> {
         }
     };
     println!("\nOpening connection");
-    let mut conn_out = midi_out.connect(out_port, "midir-test")?;
+    let conn_out = midi_out.connect(out_port, "midir-test")?;
     // Return the conn_out
   Ok(conn_out)
 }
 
-fn print_state(state: &mut State) {
-    state.capture_app_state();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn OtherError>> {
+    // let mut exit: bool = false;
+    let mut exit = Arc::new(Mutex::new(false));
 
-    let time = state.link.clock_micros();
-    let enabled = match state.link.is_enabled() {
-        true => "yes",
-        false => "no ",
-    }
-    .to_string();
-    let num_peers = state.link.num_peers();
-    let start_stop = match state.link.is_start_stop_sync_enabled() {
-        true => "yes",
-        false => "no ",
-    };
-    let playing = match state.session_state.is_playing() {
-        true => "[playing]",
-        false => "[stopped]",
-    };
-    let tempo = state.session_state.tempo();
-    let beats = state.session_state.beat_at_time(time, state.quantum);
-    let phase = state.session_state.phase_at_time(time, state.quantum);
-    let mut metro = String::with_capacity(state.quantum as usize);
-    for i in 0..state.quantum as usize {
-        if i > phase as usize {
-            metro.push('O');
-        } else {
-            metro.push('X');
-        }
-    }
-}
-
-fn main() -> Result<(), Box<dyn OtherError>> {
-    let exit: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
     println!(r#"███████╗██████╗ ███████╗███╗   ███╗██╗████████╗
 ██╔════╝██╔══██╗██╔════╝████╗ ████║██║╚══██╔══╝
@@ -112,9 +107,8 @@ fn main() -> Result<(), Box<dyn OtherError>> {
 ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝╚═╝   ╚═╝"#);
 
     // Starting Ableton Link
-    let mut state = State::new();
-    let time = state.link.clock_micros();
-    state.link.enable(true);
+    let clock = Arc::new(Mutex::new(AbeLinkState::new()));
+
 
     // Creating Lua and setting up globals
     let lua = Lua::new();
@@ -164,28 +158,20 @@ fn main() -> Result<(), Box<dyn OtherError>> {
     })?;
     globals.set("note", note)?;
 
-    let num_peers = lua.create_function(move |_, ()| -> LuaResult<u32> {
-        Ok(state.link.num_peers().try_into().unwrap())
-    })?;
-    globals.set("num_peers", num_peers)?;
+    // Pass a clone of the Arc<Mutex<>> to the Lua function
+    let exit_clone = exit.clone();
 
-    let tempo = lua.create_function(move |_, ()| -> LuaResult<f64> {
-        Ok(state.session_state.tempo())
+    // Create the quit Lua function
+    let quit = lua.create_function(move |_, ()| -> LuaResult<()> {
+        // Lock the mutex to modify the boolean
+        let mut exit = exit_clone.lock().unwrap();
+        *exit = true;
+        Ok(())
     })?;
-    globals.set("tempo", tempo)?;
-
-    let quit = {
-        let exit = exit.clone();
-        lua.create_function(move |_, ()| -> LuaResult<()> {
-            let mut exit = exit.lock().unwrap();
-            *exit = true;
-            Ok(())
-        })?
-    };
     globals.set("quit", quit)?;
 
     loop {
-        let mut prompt = "=> ";
+        let prompt = "=> ";
         let mut line = String::new();
 
         while !*exit.lock().unwrap() {
