@@ -91,16 +91,81 @@ impl AbeLinkState {
     }
   }
 
-  pub fn unix_time_at_next_phase(&self) -> u64 {
-    let link_time_stamp = self.link.clock_micros();
-    let quantum = self.quantum;
-    let beat = self.session_state.beat_at_time(link_time_stamp, quantum);
-    let phase = self.session_state.phase_at_time(link_time_stamp, quantum);
-    let internal_time_at_next_phase = self.session_state.time_at_beat(beat + (quantum - phase), quantum);
-    let time_offset = Duration::from_micros((internal_time_at_next_phase - link_time_stamp) as u64);
-    let current_unix_time = current_unix_time();
-    let unix_time_at_next_phase = (current_unix_time + time_offset).as_millis();
-    return unix_time_at_next_phase as u64;
+  
+  pub fn is_running(&self) -> bool {
+    return self.running;
+  }
+
+  pub fn set_tempo(&mut self, tempo: f64) {
+    let time_stamp = self.link.clock_micros();
+    self.session_state.set_tempo(tempo, time_stamp);
+    self.link.commit_app_session_state(&self.session_state);
+    self.commit_app_state();
+  }
+  
+
+  // Make snapshots
+
+  pub fn make_snapshot(&mut self) {
+    self.snapshot = Some(self.get_clock_state());
+  }
+
+  pub fn print_snapshot(&self) {
+    match &self.snapshot {
+      Some(s) => {
+        println!("Tempo: {}", &s.tempo);
+        println!("Beats: {}", &s.beats);
+        println!("Phase: {}", &s.phase);
+        println!("Metro: {}", &s.metro);
+      }
+      None => println!("No snapshot available"),
+    }
+  }
+
+  pub fn sync(&mut self) {
+    self.sync = !self.sync;
+    println!("Sync: {}", &self.sync);
+    self.link.enable_start_stop_sync(self.sync);
+    self.commit_app_state();
+  }
+
+  pub fn peers(&self) -> u64 {
+    return self.link.num_peers();
+  }
+
+  pub fn play(&mut self) {
+    let time_stamp = self.link.clock_micros();
+    if self.session_state.is_playing() {
+      self.session_state.set_is_playing(false, time_stamp as u64);
+    } else {
+      self.session_state.set_is_playing_and_request_beat_at_time(
+        true,
+        time_stamp as u64,
+        0.,
+        self.quantum);
+    }
+    self.commit_app_state();
+  }
+
+  pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+      // Create a recurring timer that triggers every 10ms
+      let mut interval = interval(Duration::from_millis(20));
+      self.link.enable(true); 
+      self.link.enable_start_stop_sync(true);
+
+      // Loop that captures the session state at regular intervals
+      loop {
+          // Wait for the timer to trigger
+          interval.tick().await;
+          self.make_snapshot();
+          // For debug purposes
+          // self.print_snapshot();
+          if !self.is_running() {
+              return Ok(());
+          }
+          self.commit_app_state();
+          self.link.commit_app_session_state(&self.session_state);
+      }
   }
 
   pub fn capture_app_state(&mut self) {
@@ -110,47 +175,18 @@ impl AbeLinkState {
   pub fn commit_app_state(&mut self) {
     self.link.commit_app_session_state(&self.session_state);
   }
-  
-  pub fn is_running(&self) -> bool {
-    return self.running;
-  }
 
-  pub fn set_tempo(&mut self, tempo: f64) {
-    let time_stamp = self.link.clock_micros();
-    self.session_state.set_tempo(tempo, time_stamp);
-    self.commit_app_state();
-  }
-  
-  pub fn make_snapshot(&mut self) {
-    self.snapshot = Some(self.get_clock_state());
-  }
-
-  pub fn sync(&mut self) {
-    self.sync = !self.sync;
-    println!("Sync: {}", &self.sync);
-    self.link.enable_start_stop_sync(self.sync)
-  }
-
-  pub fn peers(&self) -> u64 {
-    return self.link.num_peers();
-  }
-
-  pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-      // Create a recurring timer that triggers every 10ms
-      let mut interval = interval(Duration::from_millis(20));
-      self.link.enable(true);
-      self.link.enable_start_stop_sync(true);
-
-      // Loop that captures the session state at regular intervals
-      loop {
-          // Wait for the timer to trigger
-          interval.tick().await;
-          self.make_snapshot();
-          if !self.is_running() {
-              return Ok(());
-          }
-      }
-  }
-
+  // Legacy
+  // pub fn unix_time_at_next_phase(&self) -> u64 {
+  //   let link_time_stamp = self.link.clock_micros();
+  //   let quantum = self.quantum;
+  //   let beat = self.session_state.beat_at_time(link_time_stamp, quantum);
+  //   let phase = self.session_state.phase_at_time(link_time_stamp, quantum);
+  //   let internal_time_at_next_phase = self.session_state.time_at_beat(beat + (quantum - phase), quantum);
+  //   let time_offset = Duration::from_micros((internal_time_at_next_phase - link_time_stamp) as u64);
+  //   let current_unix_time = current_unix_time();
+  //   let unix_time_at_next_phase = (current_unix_time + time_offset).as_millis();
+  //   return unix_time_at_next_phase as u64;
+  // }
 
 }

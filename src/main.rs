@@ -1,9 +1,7 @@
 #![allow(dead_code)]
-use std::clone;
 use std::error::Error;
 use mlua::Lua;
 use std::sync::{Arc, Mutex};
-use std::error::Error as StdError;
 use midir::MidiOutputConnection;
 use mlua::Result as LuaResult;
 
@@ -91,6 +89,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let _ = interpreter.register_function("unix", |_lua: &Lua, _args: ()| -> LuaResult<f64> {
         Ok(clock::current_unix_time().as_secs_f64())
     });
+    let _ = interpreter.register_function("play", {
+        let cloned_clock = Arc::clone(&clock);
+        move |_lua: &Lua, _args: ()| -> LuaResult<()> {
+            let mut clock_mutex = cloned_clock.lock().unwrap();
+            clock_mutex.play();
+            Ok(())
+        }
+    });
+
     let _ = interpreter.run();
     println!("{}", ascii::GOODBYE);
     clock.lock().unwrap().running = false;
