@@ -31,7 +31,7 @@ impl Interpreter {
             *exit = true;
             Ok(())
         })?;
-        globals.set("quit", quit)?;
+        globals.set("exit", quit)?;
         loop {
              let prompt = "=> ";
 

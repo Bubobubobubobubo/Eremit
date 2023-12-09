@@ -149,26 +149,26 @@ impl AbeLinkState {
 
   pub fn report(&mut self) {
       self.capture_app_state();
-      let time = state.link.clock_micros();
-      let enabled = match state.link.is_enabled() {
+      let time = self.link.clock_micros();
+      let enabled = match self.link.is_enabled() {
           true => "yes",
           false => "no ",
       }
       .to_string();
-      let num_peers = state.link.num_peers();
-      let start_stop = match state.link.is_start_stop_sync_enabled() {
+      let num_peers = self.link.num_peers();
+      let start_stop = match self.link.is_start_stop_sync_enabled() {
           true => "yes",
           false => "no ",
       };
-      let playing = match state.session_state.is_playing() {
+      let playing = match self.session_state.is_playing() {
           true => "[playing]",
           false => "[stopped]",
       };
-      let tempo = state.session_state.tempo();
-      let beats = state.session_state.beat_at_time(time, state.quantum);
-      let phase = state.session_state.phase_at_time(time, state.quantum);
-      let mut metro = String::with_capacity(state.quantum as usize);
-      for i in 0..state.quantum as usize {
+      let tempo = self.session_state.tempo();
+      let beats = self.session_state.beat_at_time(time, self.quantum);
+      let phase = self.session_state.phase_at_time(time, self.quantum);
+      let mut metro = String::with_capacity(self.quantum as usize);
+      for i in 0..self.quantum as usize {
           if i > phase as usize {
               metro.push('O');
           } else {
@@ -177,24 +177,14 @@ impl AbeLinkState {
       }
   
       println!("{:<7} | {:<9} | {:<7} | {:<3}   {:<9} | {:<7.2} | {:<8.2} | {}",
-           enabled, num_peers, state.quantum.trunc(), start_stop, playing, tempo, beats, metro);
-  }
-
+           enabled, num_peers, self.quantum.trunc(), start_stop, playing, tempo, beats, metro);
   }
 
   pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-      // Create a recurring timer that triggers every 10ms
+      self.play();
       let mut interval = interval(Duration::from_millis(20));
-      self.link.enable(true); 
-      self.link.enable_start_stop_sync(true);
-
-      // Loop that captures the session state at regular intervals
       loop {
-          // Wait for the timer to trigger
           interval.tick().await;
-          self.make_snapshot();
-          // For debug purposes
-          // self.print_snapshot();
           if !self.is_running() {
               return Ok(());
           }
