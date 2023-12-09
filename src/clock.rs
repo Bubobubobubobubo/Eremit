@@ -147,6 +147,41 @@ impl AbeLinkState {
     self.commit_app_state();
   }
 
+  pub fn report(&mut self) {
+      self.capture_app_state();
+      let time = state.link.clock_micros();
+      let enabled = match state.link.is_enabled() {
+          true => "yes",
+          false => "no ",
+      }
+      .to_string();
+      let num_peers = state.link.num_peers();
+      let start_stop = match state.link.is_start_stop_sync_enabled() {
+          true => "yes",
+          false => "no ",
+      };
+      let playing = match state.session_state.is_playing() {
+          true => "[playing]",
+          false => "[stopped]",
+      };
+      let tempo = state.session_state.tempo();
+      let beats = state.session_state.beat_at_time(time, state.quantum);
+      let phase = state.session_state.phase_at_time(time, state.quantum);
+      let mut metro = String::with_capacity(state.quantum as usize);
+      for i in 0..state.quantum as usize {
+          if i > phase as usize {
+              metro.push('O');
+          } else {
+              metro.push('X');
+          }
+      }
+  
+      println!("{:<7} | {:<9} | {:<7} | {:<3}   {:<9} | {:<7.2} | {:<8.2} | {}",
+           enabled, num_peers, state.quantum.trunc(), start_stop, playing, tempo, beats, metro);
+  }
+
+  }
+
   pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
       // Create a recurring timer that triggers every 10ms
       let mut interval = interval(Duration::from_millis(20));
@@ -175,18 +210,4 @@ impl AbeLinkState {
   pub fn commit_app_state(&mut self) {
     self.link.commit_app_session_state(&self.session_state);
   }
-
-  // Legacy
-  // pub fn unix_time_at_next_phase(&self) -> u64 {
-  //   let link_time_stamp = self.link.clock_micros();
-  //   let quantum = self.quantum;
-  //   let beat = self.session_state.beat_at_time(link_time_stamp, quantum);
-  //   let phase = self.session_state.phase_at_time(link_time_stamp, quantum);
-  //   let internal_time_at_next_phase = self.session_state.time_at_beat(beat + (quantum - phase), quantum);
-  //   let time_offset = Duration::from_micros((internal_time_at_next_phase - link_time_stamp) as u64);
-  //   let current_unix_time = current_unix_time();
-  //   let unix_time_at_next_phase = (current_unix_time + time_offset).as_millis();
-  //   return unix_time_at_next_phase as u64;
-  // }
-
 }
