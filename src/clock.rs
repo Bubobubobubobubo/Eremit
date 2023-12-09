@@ -4,7 +4,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::interval;
 
-
 #[derive(Debug)]
 #[derive(Clone)]
 pub struct ClockState {
@@ -33,7 +32,8 @@ pub struct AbeLinkState {
   pub session_state: SessionState,
   pub running: bool,
   pub quantum: f64,
-  pub snapshot: Option<ClockState>
+  pub snapshot: Option<ClockState>,
+  pub sync: bool,
 }
 
 impl AbeLinkState {
@@ -41,6 +41,7 @@ impl AbeLinkState {
     Self {
       link: AblLink::new(120.0),
       session_state: SessionState::new(),
+      sync: true,
       running: true,
       quantum: 4.0,
       snapshot: None
@@ -113,9 +114,25 @@ impl AbeLinkState {
   pub fn is_running(&self) -> bool {
     return self.running;
   }
+
+  pub fn set_tempo(&mut self, tempo: f64) {
+    let time_stamp = self.link.clock_micros();
+    self.session_state.set_tempo(tempo, time_stamp);
+    self.commit_app_state();
+  }
   
   pub fn make_snapshot(&mut self) {
     self.snapshot = Some(self.get_clock_state());
+  }
+
+  pub fn sync(&mut self) {
+    self.sync = !self.sync;
+    println!("Sync: {}", &self.sync);
+    self.link.enable_start_stop_sync(self.sync)
+  }
+
+  pub fn peers(&self) -> u64 {
+    return self.link.num_peers();
   }
 
   pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -123,7 +140,6 @@ impl AbeLinkState {
       let mut interval = interval(Duration::from_millis(20));
       self.link.enable(true);
       self.link.enable_start_stop_sync(true);
-      println!("Starting AbeLinkState run loop");
 
       // Loop that captures the session state at regular intervals
       loop {

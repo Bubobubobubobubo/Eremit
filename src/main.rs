@@ -49,6 +49,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
             None => Err(mlua::Error::RuntimeError("No snapshot available".to_string()))
         }
     }});
+    let _ = interpreter.register_function("set_tempo", {
+        let cloned_clock = Arc::clone(&clock);
+        move |_lua: &Lua, args: (f64,)| -> LuaResult<()> {
+            let mut clock_mutex = cloned_clock.lock().unwrap();
+            clock_mutex.set_tempo(args.0);
+            Ok(())
+        }
+    });
+    let _ = interpreter.register_function("sync", {
+        let cloned_clock = Arc::clone(&clock);
+        move |_lua: &Lua, _args: ()| -> LuaResult<()> {
+            let mut clock_mutex = cloned_clock.lock().unwrap();
+            clock_mutex.sync();
+            Ok(())
+        }
+    });
+    let _ = interpreter.register_function("peers", {
+        let cloned_clock = Arc::clone(&clock);
+        move |_lua: &Lua, _args: ()| -> LuaResult<u64> {
+            let clock_mutex = cloned_clock.lock().unwrap();
+            Ok(clock_mutex.peers())
+        }
+    });
     let _ = interpreter.register_function("phase", {
         let clock = Arc::clone(&clock);
         move |_lua: &Lua, _args: ()| -> LuaResult<f64> {
