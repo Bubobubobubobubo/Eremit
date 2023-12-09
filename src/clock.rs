@@ -1,8 +1,6 @@
 use rusty_link::{AblLink, SessionState};
-use std::time::{Duration,  SystemTime, UNIX_EPOCH};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::time::interval;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::thread::sleep;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -23,11 +21,7 @@ pub fn current_unix_time() -> Duration {
   return current_unix_time;
 }
 
-pub struct AbeLinkStateContainer {
-  pub abelink: Arc<Mutex<AbeLinkState>>,
-}
-
-pub struct AbeLinkState {
+pub struct Clock {
   pub link: AblLink,
   pub session_state: SessionState,
   pub running: bool,
@@ -36,7 +30,7 @@ pub struct AbeLinkState {
   pub sync: bool,
 }
 
-impl AbeLinkState {
+impl Clock {
   pub fn new() -> Self {
     Self {
       link: AblLink::new(120.0),
@@ -148,6 +142,7 @@ impl AbeLinkState {
   }
 
   pub fn report(&mut self) {
+      println!("Running the report function");
       self.capture_app_state();
       let time = self.link.clock_micros();
       let enabled = match self.link.is_enabled() {
@@ -180,16 +175,21 @@ impl AbeLinkState {
            enabled, num_peers, self.quantum.trunc(), start_stop, playing, tempo, beats, metro);
   }
 
-  pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-      self.play();
-      let mut interval = interval(Duration::from_millis(20));
+  pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+      self.link.enable_start_stop_sync(true);
+      self.link.enable(true);
+      println!("Running!");
+      let interval = Duration::from_millis(100);
+      let mut next_time = Instant::now() + interval;
       loop {
-          interval.tick().await;
           if !self.is_running() {
               return Ok(());
           }
+          self.report();
           self.commit_app_state();
           self.link.commit_app_session_state(&self.session_state);
+          sleep(next_time - Instant::now());
+          next_time += interval;
       }
   }
 

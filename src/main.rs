@@ -4,38 +4,29 @@ use mlua::Lua;
 use std::sync::{Arc, Mutex};
 use midir::MidiOutputConnection;
 use mlua::Result as LuaResult;
-use tokio::sync::Mutex as TokioMutex;
 mod ascii;
 mod midi;
 mod clock;
 mod interpreter;
 mod config;
+use std::thread;
 
-#[tokio::main]
-/// Entry point of the program
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
     let cfg: config::EremitConfig = confy::load("eremit", None)?;
-    let abe_link_state = Arc::new(TokioMutex::new(clock::AbeLinkState::new()));
-    let cloned_clock = Arc::clone(&abe_link_state);
-    let handle = tokio::spawn(async move {
-        let mut clock_mutex = cloned_clock.lock().await;
-        let _ = clock_mutex.run().await;
+    let clock = Arc::new(Mutex::new(clock::Clock::new()));
+    let clock_clone = Arc::clone(&clock);
+    thread::spawn(move || {
+        let mut clock_mutex = clock_clone.lock().unwrap();
+        let _ = clock_mutex.run();
     });
     let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
     conn_out = midi::setup_midi_connection(conn_out);
     let mut interpreter = interpreter::Interpreter::new();
-    
-    // Registering somme dummy functions as a test!
-    fn test_function(_lua: &Lua, _args: ()) -> LuaResult<()> {
-        println!("Hello from Rust!");
-        Ok(())
-    }
     let _ = interpreter.register_function("report", {
-        let cloned_clock = Arc::clone(&abe_link_state);
-        move |_lua: &Lua, _args: ()| -> LuaResult<()> {
-            let mut clock_mutex = cloned_clock.lock().await;
-            clock_mutex.report();
+        let cloned_clock = Arc::clone(&clock);
+            move |_lua: &Lua, _args: ()| -> LuaResult<()> {
+                cloned_clock.lock().unwrap().report();
             Ok(())
         }
     });
