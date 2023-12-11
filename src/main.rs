@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 #![allow(dead_code)]
 use std::error::Error;
 use mlua::Lua;
@@ -16,7 +17,7 @@ use std::thread;
 fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
     let _cfg: config::EremitConfig = confy::load("eremit", None)?;
-    let mut conn_out: Arc<Mutex<MidiOutputConnection>> = Arc::new(Mutex::new(midi::setup_midi_connection()));
+    let conn_out: Arc<Mutex<MidiOutputConnection>> = Arc::new(Mutex::new(midi::setup_midi_connection()));
     let (sender_to_clock, receiver_for_clock) = mpsc::channel::<clock::ClockControlMessage>();
     let (sender_from_clock, receiver_for_main) = mpsc::channel::<clock::ClockControlMessage>();
     let receiver_for_main = Arc::new(Mutex::new(receiver_for_main));

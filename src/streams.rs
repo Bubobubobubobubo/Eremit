@@ -106,7 +106,7 @@ impl Stream {
         self.pattern.push(event);
     }
 
-    pub fn notify_tick(&mut self, beat: f64, quantum: f64) {
+    pub fn notify_tick(&mut self, beat: f64, _quantum: f64) {
         for event in self.pattern.iter() {
             if event.begin <= beat && event.end >= beat {
                 event.start_event(beat);

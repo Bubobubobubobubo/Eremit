@@ -2,7 +2,6 @@ use midir::{MidiOutput, MidiOutputPort, MidiOutputConnection};
 use std::io::{stdin, stdout, Write};
 use std::error::Error;
 use std::result::Result as StdResult;
-use std::sync::{Arc, Mutex};
 
 pub fn _setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
     let midi_out = MidiOutput::new("My Test Output")?;
@@ -32,7 +31,7 @@ pub fn _setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
         }
     };
     println!("\nOpening connection");
-    let mut conn_out = midi_out.connect(out_port, "midir-test")?;
+    let conn_out = midi_out.connect(out_port, "midir-test")?;
     // Return the conn_out
   Ok(conn_out)
 }
