@@ -10,11 +10,12 @@ mod midi;
 mod clock;
 mod interpreter;
 mod config;
+mod streams;
 use std::thread;
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
-    let cfg: config::EremitConfig = confy::load("eremit", None)?;
+    let _cfg: config::EremitConfig = confy::load("eremit", None)?;
     // Communicating to the clock
     let (sender_to_clock, receiver_for_clock) = mpsc::channel::<clock::ClockControlMessage>();
     // Receiving data from the clock
@@ -119,6 +120,36 @@ fn main() -> Result<(), Box<dyn Error>> {
             let recv = cloned_receiver.lock().unwrap().recv().unwrap();
             match recv.name.as_str() {
                 "peers" => {
+                    Ok(recv.args[0].parse::<i32>().unwrap())
+                },
+                _ => {
+                    println!("Unknown command: {}", recv.name);
+                    Ok(0)
+                }
+            }
+        }
+    });
+    let _ = interpreter.register_function("add_subscriber", {
+        let cloned_sender = sender_to_clock.clone();
+        move |_lua: &Lua, _args: (String,)| -> LuaResult<()> {
+            cloned_sender.send(clock::ClockControlMessage {
+                name: "add_subscriber".to_string(),
+                args: vec![_args.0],
+            }).unwrap();
+            Ok(())
+        }
+    });
+    let _ = interpreter.register_function("subscribers", {
+        let cloned_sender = sender_to_clock.clone();
+        let cloned_receiver = receiver_for_main.clone();
+        move |_lua: &Lua, _args: ()| -> LuaResult<i32> {
+            cloned_sender.send(clock::ClockControlMessage {
+                name: "subscribers".to_string(),
+                args: vec![],
+            }).unwrap();
+            let recv = cloned_receiver.lock().unwrap().recv().unwrap();
+            match recv.name.as_str() {
+                "subscribers" => {
                     Ok(recv.args[0].parse::<i32>().unwrap())
                 },
                 _ => {

@@ -2,8 +2,7 @@ use rusty_link::{AblLink, SessionState};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::thread::sleep;
 use std::sync::mpsc::{Receiver, Sender};
-
-
+use crate::streams::Stream;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -32,7 +31,8 @@ pub struct Clock {
   pub snapshot: Option<ClockState>,
   pub sync: bool,
   receiver: Receiver<ClockControlMessage>,
-  sender: Sender<ClockControlMessage>
+  sender: Sender<ClockControlMessage>,
+  subscribers: Vec<Stream>
 }
 #[derive(Debug)]
 pub struct ClockControlMessage {
@@ -50,8 +50,22 @@ impl Clock {
       quantum: 4.0,
       snapshot: None,
       receiver: receiver,
-      sender: sender
+      sender: sender,
+      subscribers: Vec::new()
     }
+  }
+
+  pub fn add_subscriber(&mut self, stream: Stream) {
+    self.subscribers.push(stream);
+  }
+
+  pub fn remove_subscriber(&mut self, stream: Stream) {
+    let index = self.subscribers.iter().position(|x| *x == stream).unwrap();
+    self.subscribers.remove(index);
+  }
+
+  pub fn clear_subs(&mut self) {
+    self.subscribers.clear();
   }
 
   pub fn get_clock_state(&mut self) -> ClockState {
@@ -154,7 +168,6 @@ impl Clock {
   }
 
   pub fn report(&mut self) {
-      println!("Running the report function");
       self.capture_app_state();
       let time = self.link.clock_micros();
       let enabled = match self.link.is_enabled() {
@@ -189,6 +202,16 @@ impl Clock {
   pub fn handle_messages(&mut self, recv: &ClockControlMessage) {
       self.capture_app_state();
       match recv.name.as_str() {
+          "subscribers" => {
+            self.sender.send(ClockControlMessage {
+              name: "subscribers".to_string(),
+              args: vec![self.subscribers.len().to_string()],
+            }).unwrap();
+          },
+          "add_subscriber" => {
+            let stream = Stream::new(recv.args[0].clone());
+            self.add_subscriber(stream);
+          },
           "sync" => {
             self.sync();
           },
@@ -241,6 +264,10 @@ impl Clock {
                   self.handle_messages(&recv);
               },
               Err(_) => {}
+          }
+          // Iterate over subscribers and notify them
+          for sub in &mut self.subscribers {
+            sub.notify_tick();
           }
           if !self.is_running() {
               return Ok(());
