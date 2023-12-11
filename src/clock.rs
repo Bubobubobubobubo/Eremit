@@ -108,7 +108,6 @@ impl Clock {
     self.link.commit_app_session_state(&self.session_state);
     self.commit_app_state();
   }
-  
 
   // Make snapshots
 
@@ -130,9 +129,9 @@ impl Clock {
 
   pub fn sync(&mut self) {
     self.sync = !self.sync;
-    println!("Sync: {}", &self.sync);
     self.link.enable_start_stop_sync(self.sync);
     self.commit_app_state();
+    self.report();
   }
 
   pub fn peers(&self) -> u64 {
@@ -151,6 +150,7 @@ impl Clock {
         self.quantum);
     }
     self.commit_app_state();
+    self.report();
   }
 
   pub fn report(&mut self) {
@@ -189,6 +189,19 @@ impl Clock {
   pub fn handle_messages(&mut self, recv: &ClockControlMessage) {
       self.capture_app_state();
       match recv.name.as_str() {
+          "sync" => {
+            self.sync();
+          },
+          "play" => {
+            self.play();
+            self.commit_app_state();
+          },
+          "peers" => {
+            self.sender.send(ClockControlMessage {
+              name: "peers".to_string(),
+              args: vec![self.link.num_peers().to_string()],
+            }).unwrap();
+          },
           "get_tempo" => {
             self.sender.send(ClockControlMessage {
               name: "get_tempo".to_string(),
