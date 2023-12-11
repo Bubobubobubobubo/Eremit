@@ -1,3 +1,18 @@
+enum EventType {
+    Tick,
+    NoteOn,
+    NoteOff,
+    ControlChange,
+    ProgramChange,
+    PitchBend,
+    Aftertouch,
+    PolyAftertouch,
+    SysEx,
+    SysCommon,
+    SysRealtime
+}
+
+
 #[derive(Clone)]
 #[derive(Debug)]
 #[derive(PartialEq)]
