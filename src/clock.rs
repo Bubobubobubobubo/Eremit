@@ -1,6 +1,9 @@
 use rusty_link::{AblLink, SessionState};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::thread::sleep;
+use std::sync::mpsc::{Receiver, Sender};
+
+
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -28,17 +31,26 @@ pub struct Clock {
   pub quantum: f64,
   pub snapshot: Option<ClockState>,
   pub sync: bool,
+  receiver: Receiver<ClockControlMessage>,
+  sender: Sender<ClockControlMessage>
+}
+#[derive(Debug)]
+pub struct ClockControlMessage {
+    pub name: String,
+    pub args: Vec<String>
 }
 
 impl Clock {
-  pub fn new() -> Self {
+  pub fn new(receiver: Receiver<ClockControlMessage>, sender: Sender<ClockControlMessage>) -> Self {
     Self {
       link: AblLink::new(120.0),
       session_state: SessionState::new(),
       sync: true,
       running: true,
       quantum: 4.0,
-      snapshot: None
+      snapshot: None,
+      receiver: receiver,
+      sender: sender
     }
   }
 
@@ -170,9 +182,37 @@ impl Clock {
               metro.push('X');
           }
       }
-  
       println!("{:<7} | {:<9} | {:<7} | {:<3}   {:<9} | {:<7.2} | {:<8.2} | {}",
            enabled, num_peers, self.quantum.trunc(), start_stop, playing, tempo, beats, metro);
+  }
+
+  pub fn handle_messages(&mut self, recv: &ClockControlMessage) {
+      self.capture_app_state();
+      match recv.name.as_str() {
+          "get_tempo" => {
+            self.sender.send(ClockControlMessage {
+              name: "get_tempo".to_string(),
+              args: vec![self.session_state.tempo().to_string()],
+            }).unwrap();
+          },
+          "set_tempo" => {
+            let tempo = recv.args[0].parse::<f64>().unwrap();
+            self.set_tempo(tempo);
+            self.commit_app_state();
+          },
+          "get_phase" => {
+            self.sender.send(ClockControlMessage {
+              name: "get_phase".to_string(),
+              args: vec![self.session_state.phase_at_time(self.link.clock_micros(), self.quantum).to_string()],
+            }).unwrap();
+          },
+          "report" => {
+            self.report();
+          },
+          _ => {
+            println!("Unknown command: {}", recv.name);
+          }
+      }
   }
 
   pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -182,10 +222,16 @@ impl Clock {
       let interval = Duration::from_millis(100);
       let mut next_time = Instant::now() + interval;
       loop {
+          let receive = self.receiver.try_recv();
+          match receive {
+              Ok(recv) => {
+                  self.handle_messages(&recv);
+              },
+              Err(_) => {}
+          }
           if !self.is_running() {
               return Ok(());
           }
-          self.report();
           self.commit_app_state();
           self.link.commit_app_session_state(&self.session_state);
           sleep(next_time - Instant::now());
