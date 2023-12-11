@@ -28,6 +28,6 @@ Compilation is a two step process, three with cloning the project:
 2) `git submodule update --init --recursive` for (_rusty link_).
 3) `cargo build` or `cargo run`
 
-## Interacction
+## Interaction
 
 I've written a small [eremit-vscode](https://github.com/Bubobubobubobubo/eremit-vscode) plugin to help me test the program in real conditions.
