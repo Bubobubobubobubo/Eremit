@@ -37,26 +37,13 @@ pub fn _setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
   Ok(conn_out)
 }
 
-pub fn setup_midi_connection(conn_out: Arc<Mutex<Option<MidiOutputConnection>>>) -> Arc<Mutex<Option<MidiOutputConnection>>> {
-    match _setup_midi() {
-        Ok(connection) => {
-            *conn_out.lock().unwrap() = Some(connection);
-        },
-        Err(err) => {
-            println!("Error {}", err);
-            let mut success = false;
-            while !success {
-                match _setup_midi() {
-                    Ok(connection) => {
-                        *conn_out.lock().unwrap() = Some(connection);
-                        success = true;
-                    },
-                    Err(err) => {
-                        println!("Error {}", err);
-                    }
-                }
+pub fn setup_midi_connection() -> MidiOutputConnection {
+    loop {
+        match _setup_midi() {
+            Ok(connection) => return connection,
+            Err(err) => {
+                println!("Error: {}", err);
             }
         }
     }
-    conn_out
 }

@@ -32,7 +32,7 @@ pub struct Clock {
   pub quantum: f64,
   pub snapshot: Option<ClockState>,
   pub sync: bool,
-  pub midi: Arc<Mutex<Option<MidiOutputConnection>>>,
+  pub midi: Arc<Mutex<MidiOutputConnection>>,
   receiver: Receiver<ClockControlMessage>,
   sender: Sender<ClockControlMessage>,
   subscribers: Vec<streams::Stream>
@@ -45,7 +45,7 @@ pub struct ClockControlMessage {
 
 impl Clock {
   pub fn new(
-     midi: Arc<Mutex<Option<MidiOutputConnection>>>,
+     midi: Arc<Mutex<MidiOutputConnection>>,
      receiver: Receiver<ClockControlMessage>, 
      sender: Sender<ClockControlMessage>
   ) -> Self {
@@ -65,11 +65,6 @@ impl Clock {
 
   pub fn add_subscriber(&mut self, stream: streams::Stream) {
     self.subscribers.push(stream);
-  }
-
-  pub fn remove_subscriber(&mut self, stream: streams::Stream) {
-    let index = self.subscribers.iter().position(|x| *x == stream).unwrap();
-    self.subscribers.remove(index);
   }
 
   pub fn clear_subs(&mut self) {
@@ -212,7 +207,7 @@ impl Clock {
       match recv.name.as_str() {
           "test" => {
             // Create a new test stream
-            let mut stream = streams::Stream::new("default".to_string());
+            let mut stream = streams::Stream::new("default".to_string(), self.midi.clone());
             let beat = self.session_state.beat_at_time(self.link.clock_micros(), self.quantum);
             stream.add_event(streams::Event::new(beat + 0.5, beat + 1.5,  streams::BaseEventType::Tick, Vec::new()));
             self.add_subscriber(stream);
@@ -230,7 +225,7 @@ impl Clock {
             }).unwrap();
           },
           "add_subscriber" => {
-            let stream = streams::Stream::new(recv.args[0].clone());
+            let stream = streams::Stream::new(recv.args[0].clone(), self.midi.clone());
             self.add_subscriber(stream);
           },
           "sync" => {

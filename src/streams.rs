@@ -1,5 +1,8 @@
 use core::fmt::Formatter;
 use std::fmt::Display;
+use std::sync::{Arc, Mutex};
+use midir::MidiOutputConnection;
+use std::fmt::Debug;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum BaseEventType {
@@ -83,17 +86,19 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct Stream {
     name: String,
-    pattern: Vec<Event>
+    pattern: Vec<Event>,
+    midi: Arc<Mutex<MidiOutputConnection>>
 }
 
 impl Stream {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, midi: Arc<Mutex<MidiOutputConnection>>) -> Self {
         Self {
             name,
-            pattern: Vec::new()
+            pattern: Vec::new(),
+            midi: midi
         }
     }
 
