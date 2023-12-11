@@ -63,10 +63,12 @@ impl Event {
         }
     }
 
-    fn start_event(&self, beat: f64) {
+    fn start_event(&self, beat: f64, midi: Arc<Mutex<MidiOutputConnection>>) {
         match self.event_type {
             BaseEventType::Tick => {
                 println!("[Tick] Start event: {}", beat);
+                // Send a C4 note on 
+                midi.lock().unwrap().send(&[0x90, 60, 0x7f]).unwrap();
             },
             _ => {
                 println!("Unknown event type: {}", self.event_type);
@@ -74,10 +76,12 @@ impl Event {
         }
     }
 
-    fn end_event(&self, beat: f64) {
+    fn end_event(&self, beat: f64, midi: Arc<Mutex<MidiOutputConnection>>) {
         match self.event_type {
             BaseEventType::Tick => {
                 println!("[Tick] End Event: {}", beat);
+                // Send a C4 note off
+                midi.lock().unwrap().send(&[0x80, 60, 0x7f]).unwrap();
             },
             _ => {
                 println!("Unknown event type: {}", self.event_type);
@@ -109,9 +113,9 @@ impl Stream {
     pub fn notify_tick(&mut self, beat: f64, _quantum: f64) {
         for event in self.pattern.iter() {
             if event.begin <= beat && event.end >= beat {
-                event.start_event(beat);
+                event.start_event(beat, self.midi.clone());
             } else if event.end < beat {
-                event.end_event(beat);
+                event.end_event(beat, self.midi.clone());
             }
         }
 
