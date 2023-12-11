@@ -1,5 +1,7 @@
 # Eremit
 
+![eremit_logo.jpeg]
+
 I decided to learn Rust because I don't know how to use a high-performance compiled language and this often stops me when I'm trying to do real-time audio or precise manipulation of time and audio. I know next to nothing about language and I'm learning as I go. I'm not even aware of all that language has to offer, so I just run into the walls and correct accordingly!
 
 ## Architecture
