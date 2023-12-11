@@ -16,18 +16,16 @@ use std::thread;
 fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
     let _cfg: config::EremitConfig = confy::load("eremit", None)?;
-    // Communicating to the clock
+    let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
+    conn_out = midi::setup_midi_connection(conn_out);
     let (sender_to_clock, receiver_for_clock) = mpsc::channel::<clock::ClockControlMessage>();
-    // Receiving data from the clock
     let (sender_from_clock, receiver_for_main) = mpsc::channel::<clock::ClockControlMessage>();
     let receiver_for_main = Arc::new(Mutex::new(receiver_for_main));
-    let clock = Arc::new(Mutex::new(clock::Clock::new(receiver_for_clock, sender_from_clock)));
+    let clock = Arc::new(Mutex::new(clock::Clock::new(conn_out, receiver_for_clock, sender_from_clock)));
     let clock_clone = clock.clone();
     thread::spawn(move || {
         let _ = clock_clone.lock().unwrap().run();
     });
-    let mut conn_out: Arc<Mutex<Option<MidiOutputConnection>>> = Arc::new(Mutex::new(None));
-    conn_out = midi::setup_midi_connection(conn_out);
     let mut interpreter = interpreter::Interpreter::new();
     let _ = interpreter.register_function("report", {
         let cloned_sender = sender_to_clock.clone();
@@ -179,11 +177,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     });
+    let _ = interpreter.register_function("test", {
+        let cloned_sender = sender_to_clock.clone();
+        move |_lua: &Lua, _args: ()| -> LuaResult<()> {
+            cloned_sender.send(clock::ClockControlMessage {
+                name: "test".to_string(),
+                args: vec![],
+            }).unwrap();
+            Ok(())
+        }
+    });
     // This is a test event that should repeat every bar
-    // let mut stream = streams::Stream::new("default".to_string());
-    // stream.add_event(streams::Event::new(0.0, 1.0, streams::BaseEventType::Tick, Vec::new()));
-    // let clock_clone = clock.clone();
-    // clock_clone.lock().unwrap().add_subscriber(stream);
     let _ = interpreter.run();
     println!("{}", ascii::GOODBYE);
     Ok(())

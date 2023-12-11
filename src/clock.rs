@@ -1,8 +1,10 @@
 use rusty_link::{AblLink, SessionState};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::thread::sleep;
 use std::sync::mpsc::{Receiver, Sender};
-use crate::streams::Stream;
+use crate::streams;
+use midir::MidiOutputConnection;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -30,9 +32,10 @@ pub struct Clock {
   pub quantum: f64,
   pub snapshot: Option<ClockState>,
   pub sync: bool,
+  pub midi: Arc<Mutex<Option<MidiOutputConnection>>>,
   receiver: Receiver<ClockControlMessage>,
   sender: Sender<ClockControlMessage>,
-  subscribers: Vec<Stream>
+  subscribers: Vec<streams::Stream>
 }
 #[derive(Debug)]
 pub struct ClockControlMessage {
@@ -41,7 +44,11 @@ pub struct ClockControlMessage {
 }
 
 impl Clock {
-  pub fn new(receiver: Receiver<ClockControlMessage>, sender: Sender<ClockControlMessage>) -> Self {
+  pub fn new(
+     midi: Arc<Mutex<Option<MidiOutputConnection>>>,
+     receiver: Receiver<ClockControlMessage>, 
+     sender: Sender<ClockControlMessage>
+  ) -> Self {
     Self {
       link: AblLink::new(120.0),
       session_state: SessionState::new(),
@@ -51,15 +58,16 @@ impl Clock {
       snapshot: None,
       receiver: receiver,
       sender: sender,
+      midi: midi,
       subscribers: Vec::new()
     }
   }
 
-  pub fn add_subscriber(&mut self, stream: Stream) {
+  pub fn add_subscriber(&mut self, stream: streams::Stream) {
     self.subscribers.push(stream);
   }
 
-  pub fn remove_subscriber(&mut self, stream: Stream) {
+  pub fn remove_subscriber(&mut self, stream: streams::Stream) {
     let index = self.subscribers.iter().position(|x| *x == stream).unwrap();
     self.subscribers.remove(index);
   }
@@ -202,6 +210,13 @@ impl Clock {
   pub fn handle_messages(&mut self, recv: &ClockControlMessage) {
       self.capture_app_state();
       match recv.name.as_str() {
+          "test" => {
+            // Create a new test stream
+            let mut stream = streams::Stream::new("default".to_string());
+            let beat = self.session_state.beat_at_time(self.link.clock_micros(), self.quantum);
+            stream.add_event(streams::Event::new(beat + 0.5, beat + 1.5,  streams::BaseEventType::Tick, Vec::new()));
+            self.add_subscriber(stream);
+          }
           "beats" => {
             self.sender.send(ClockControlMessage {
               name: "beats".to_string(),
@@ -215,7 +230,7 @@ impl Clock {
             }).unwrap();
           },
           "add_subscriber" => {
-            let stream = Stream::new(recv.args[0].clone());
+            let stream = streams::Stream::new(recv.args[0].clone());
             self.add_subscriber(stream);
           },
           "sync" => {
