@@ -1,7 +1,8 @@
 use core::fmt::Formatter;
 use std::fmt::Display;
 
-enum BaseEventType {
+#[derive(Debug, PartialEq, Clone)]
+pub enum BaseEventType {
     Tick,
     NoteOn,
     NoteOff,
@@ -15,7 +16,8 @@ enum BaseEventType {
     SysRealtime
 }
 
-struct Event {
+#[derive(Debug, PartialEq, Clone)]
+pub struct Event {
     begin: f64,
     end: f64,
     event_type: BaseEventType,
@@ -48,7 +50,8 @@ impl Display for BaseEventType {
 
 
 impl Event {
-    fn new(begin: f64, end: f64, event_type: BaseEventType, event_data: Vec<u8>) -> Self {
+
+    pub fn new(begin: f64, end: f64, event_type: BaseEventType, event_data: Vec<u8>) -> Self {
         Self {
             begin,
             end,
@@ -56,27 +59,60 @@ impl Event {
             event_data
         }
     }
-}
 
-#[derive(Clone, Debug, PartialEq)]
-struct Pattern {}
+    fn start_event(&self, beat: f64) {
+        match self.event_type {
+            BaseEventType::Tick => {
+                println!("[Tick] Start event: {}", beat);
+            },
+            _ => {
+                println!("Unknown event type: {}", self.event_type);
+            }
+        }
+    }
+
+    fn end_event(&self, beat: f64) {
+        match self.event_type {
+            BaseEventType::Tick => {
+                println!("[Tick] End Event: {}", beat);
+            },
+            _ => {
+                println!("Unknown event type: {}", self.event_type);
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stream {
     name: String,
-    pattern: Option<Pattern>
+    pattern: Vec<Event>
 }
 
 impl Stream {
     pub fn new(name: String) -> Self {
         Self {
             name,
-            pattern: None
+            pattern: Vec::new()
         }
     }
 
-    pub fn notify_tick(&mut self, phase: f64) {
-        if self.pattern.is_none() {
+    pub fn add_event(&mut self, event: Event) {
+        self.pattern.push(event);
+    }
+
+    pub fn notify_tick(&mut self, beat: f64, quantum: f64) {
+        for event in self.pattern.iter() {
+            if event.begin >= beat % quantum {
+                event.start_event(beat);
+            }
+            if event.end >= beat % quantum {
+                event.end_event(beat);
+            }
+        }
+
+        // Nothing to do...
+        if self.pattern.len() == 0 {
             return
         }
     }

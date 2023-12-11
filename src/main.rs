@@ -179,6 +179,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     });
+    // This is a test event that should repeat every bar
+    // let mut stream = streams::Stream::new("default".to_string());
+    // stream.add_event(streams::Event::new(0.0, 1.0, streams::BaseEventType::Tick, Vec::new()));
+    // let clock_clone = clock.clone();
+    // clock_clone.lock().unwrap().add_subscriber(stream);
     let _ = interpreter.run();
     println!("{}", ascii::GOODBYE);
     Ok(())

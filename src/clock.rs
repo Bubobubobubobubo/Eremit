@@ -272,9 +272,9 @@ impl Clock {
           }
 
           for sub in &mut self.subscribers {
-            sub.notify_tick(self.session_state.phase_at_time(
-              self.link.clock_micros(), 
-              self.quantum)
+            sub.notify_tick(self.session_state.beat_at_time(
+              self.link.clock_micros(), self.quantum), 
+              self.quantum as f64,
             );
           }
           if !self.is_running() {
