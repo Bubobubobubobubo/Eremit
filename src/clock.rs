@@ -202,6 +202,12 @@ impl Clock {
   pub fn handle_messages(&mut self, recv: &ClockControlMessage) {
       self.capture_app_state();
       match recv.name.as_str() {
+          "beats" => {
+            self.sender.send(ClockControlMessage {
+              name: "beats".to_string(),
+              args: vec![self.session_state.beat_at_time(self.link.clock_micros(), self.quantum).to_string()],
+            }).unwrap();
+          }
           "subscribers" => {
             self.sender.send(ClockControlMessage {
               name: "subscribers".to_string(),
@@ -254,8 +260,7 @@ impl Clock {
   pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
       self.link.enable_start_stop_sync(true);
       self.link.enable(true);
-      println!("Running!");
-      let interval = Duration::from_millis(100);
+      let interval = Duration::from_millis(20);
       let mut next_time = Instant::now() + interval;
       loop {
           let receive = self.receiver.try_recv();
@@ -265,7 +270,7 @@ impl Clock {
               },
               Err(_) => {}
           }
-          // Iterate over subscribers and notify them
+
           for sub in &mut self.subscribers {
             sub.notify_tick(self.session_state.phase_at_time(
               self.link.clock_micros(), 

@@ -59,6 +59,26 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     });
+    let _ = interpreter.register_function("beat", {
+        let cloned_sender = sender_to_clock.clone();
+        let cloned_receiver = receiver_for_main.clone();
+        move |_lua: &Lua, _args: ()| -> LuaResult<f64> {
+            cloned_sender.send(clock::ClockControlMessage {
+                name: "beats".to_string(),
+                args: vec![],
+            }).unwrap();
+            let recv = cloned_receiver.lock().unwrap().recv().unwrap();
+            match recv.name.as_str() {
+                "beats" => {
+                    Ok(recv.args[0].parse::<f64>().unwrap())
+                },
+                _ => {
+                    println!("Unknown command: {}", recv.name);
+                    Ok(0 as f64)
+                }
+            }
+        }
+    });
     let _ = interpreter.register_function("get_phase", {
         let cloned_sender = sender_to_clock.clone();
         let cloned_receiver = receiver_for_main.clone();
