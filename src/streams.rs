@@ -112,14 +112,13 @@ impl Stream {
 
     pub fn notify_tick(&mut self, beat: f64, _quantum: f64) {
         for event in self.pattern.iter() {
-            if event.begin <= beat && event.end >= beat {
+            if event.begin <= beat && event.end > beat {
                 event.start_event(beat, self.midi.clone());
             } else if event.end < beat {
                 event.end_event(beat, self.midi.clone());
             }
         }
 
-        // Nothing to do...
         if self.pattern.is_empty() {
             return;
         }
