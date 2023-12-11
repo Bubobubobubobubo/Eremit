@@ -19,8 +19,7 @@ impl Stream {
         }
     }
 
-    pub fn notify_tick(&mut self) {
-        println!("{}: tick", self.name);
+    pub fn notify_tick(&mut self, phase: f64) {
         if self.pattern.is_none() {
             return
         }

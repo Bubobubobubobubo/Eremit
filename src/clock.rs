@@ -267,7 +267,10 @@ impl Clock {
           }
           // Iterate over subscribers and notify them
           for sub in &mut self.subscribers {
-            sub.notify_tick();
+            sub.notify_tick(self.session_state.phase_at_time(
+              self.link.clock_micros(), 
+              self.quantum)
+            );
           }
           if !self.is_running() {
               return Ok(());
