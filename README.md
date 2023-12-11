@@ -18,3 +18,10 @@ I decided to learn Rust because I don't know how to use a high-performance compi
 - Little memory footprint and running **Eremit** on small devices
 - Flexible time model for sequencing patterns
 - Learning as much as possible about Rust...
+
+## Setup and Compiling
+
+Compilation is a two step process, three with cloning the project:
+1) `git clone https://github.com/Bubobubobubobubo/Eremit && cd Eremit`.
+2) `git submodule update --init --recursive` for (_rusty link_).
+3) `cargo build` or `cargo run`
