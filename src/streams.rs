@@ -4,6 +4,9 @@ use std::sync::{Arc, Mutex};
 use midir::MidiOutputConnection;
 use std::fmt::Debug;
 
+use crate::midi::MidiConnexion;
+use crate::midi::MidiMessage;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum BaseEventType {
     Tick,
@@ -63,12 +66,14 @@ impl Event {
         }
     }
 
-    fn start_event(&self, beat: f64, midi: Arc<Mutex<MidiOutputConnection>>) {
+    fn start_event(&self, beat: f64, midi: Arc<Mutex<MidiConnexion>>) {
         match self.event_type {
             BaseEventType::Tick => {
                 println!("[Tick] Start event: {}", beat);
                 // Send a C4 note on 
-                midi.lock().unwrap().send(&[0x90, 60, 0x7f]).unwrap();
+                midi.lock().unwrap().send(
+                    MidiMessage::NoteOn(60, 120, 0)
+                );
             },
             _ => {
                 println!("Unknown event type: {}", self.event_type);
@@ -76,12 +81,13 @@ impl Event {
         }
     }
 
-    fn end_event(&self, beat: f64, midi: Arc<Mutex<MidiOutputConnection>>) {
+    fn end_event(&self, beat: f64, midi: Arc<Mutex<MidiConnexion>>) {
         match self.event_type {
             BaseEventType::Tick => {
                 println!("[Tick] End Event: {}", beat);
-                // Send a C4 note off
-                midi.lock().unwrap().send(&[0x80, 60, 0x7f]).unwrap();
+                midi.lock().unwrap().send(
+                    MidiMessage::NoteOff(60, 0)
+                );
             },
             _ => {
                 println!("Unknown event type: {}", self.event_type);
@@ -94,15 +100,17 @@ impl Event {
 pub struct Stream {
     name: String,
     pattern: Vec<Event>,
-    midi: Arc<Mutex<MidiOutputConnection>>
+    midi: Arc<Mutex<MidiConnexion>>,
+    current_bar: i32
 }
 
 impl Stream {
-    pub fn new(name: String, midi: Arc<Mutex<MidiOutputConnection>>) -> Self {
+    pub fn new(name: String, midi: Arc<Mutex<MidiConnexion>>) -> Self {
         Self {
             name,
             pattern: Vec::new(),
-            midi: midi
+            midi: midi,
+            current_bar: 1 as i32
         }
     }
 
@@ -110,17 +118,29 @@ impl Stream {
         self.pattern.push(event);
     }
 
-    pub fn notify_tick(&mut self, beat: f64, _quantum: f64) {
-        for event in self.pattern.iter() {
-            if event.begin <= beat && event.end > beat {
-                event.start_event(beat, self.midi.clone());
-            } else if event.end < beat {
-                event.end_event(beat, self.midi.clone());
-            }
-        }
+    pub fn process_events(&mut self, 
+        beat: f64, 
+        _bar: f64, 
+        _quantum: f64
+    ) {
+        if self.current_bar != _bar as i32 {
+            self.current_bar = _bar as i32;
+            for event in self.pattern.iter() {
 
-        if self.pattern.is_empty() {
-            return;
+            }
+        } else {
+            return
         }
     }
+
+    pub fn notify_tick(&mut self, 
+        quantum: f64,
+        beat: f64, 
+        bar: f64,
+    ) {
+        if self.pattern.is_empty() {
+            return
+        }
+        self.process_events(beat, bar, quantum);
+   }
 }

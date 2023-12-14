@@ -1,10 +1,11 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+
+use num::{rational::Ratio, ToPrimitive};
 use std::error::Error;
 use mlua::Lua;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
-use midir::MidiOutputConnection;
 use mlua::Result as LuaResult;
 mod ascii;
 mod midi;
@@ -14,14 +15,16 @@ mod config;
 mod streams;
 use std::thread;
 
+use crate::midi::MidiConnexion;
+
 fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
     let _cfg: config::EremitConfig = confy::load("eremit", None)?;
-    let conn_out: Arc<Mutex<MidiOutputConnection>> = Arc::new(Mutex::new(midi::setup_midi_connection()));
+    let midi: Arc<Mutex<MidiConnexion>> = Arc::new(Mutex::new(midi::MidiConnexion::new()));
     let (sender_to_clock, receiver_for_clock) = mpsc::channel::<clock::ClockControlMessage>();
     let (sender_from_clock, receiver_for_main) = mpsc::channel::<clock::ClockControlMessage>();
     let receiver_for_main = Arc::new(Mutex::new(receiver_for_main));
-    let clock = Arc::new(Mutex::new(clock::Clock::new(conn_out, receiver_for_clock, sender_from_clock)));
+    let clock = Arc::new(Mutex::new(clock::Clock::new(midi, receiver_for_clock, sender_from_clock)));
     let clock_clone = clock.clone();
     thread::spawn(move || {
         let _ = clock_clone.lock().unwrap().run();

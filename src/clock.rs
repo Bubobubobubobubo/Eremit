@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::thread::sleep;
 use std::sync::mpsc::{Receiver, Sender};
+use crate::midi::MidiConnexion;
 use crate::streams;
 use midir::MidiOutputConnection;
 
@@ -32,7 +33,7 @@ pub struct Clock {
   pub quantum: f64,
   pub snapshot: Option<ClockState>,
   pub sync: bool,
-  pub midi: Arc<Mutex<MidiOutputConnection>>,
+  pub midi: Arc<Mutex<MidiConnexion>>,
   receiver: Receiver<ClockControlMessage>,
   sender: Sender<ClockControlMessage>,
   subscribers: Vec<streams::Stream>
@@ -45,7 +46,7 @@ pub struct ClockControlMessage {
 
 impl Clock {
   pub fn new(
-     midi: Arc<Mutex<MidiOutputConnection>>,
+     midi: Arc<Mutex<MidiConnexion>>,
      receiver: Receiver<ClockControlMessage>, 
      sender: Sender<ClockControlMessage>
   ) -> Self {
@@ -209,7 +210,7 @@ impl Clock {
             // Create a new test stream
             let mut stream = streams::Stream::new("default".to_string(), self.midi.clone());
             let beat = self.session_state.beat_at_time(self.link.clock_micros(), self.quantum);
-            stream.add_event(streams::Event::new(beat + 0.5, beat + 1.5,  streams::BaseEventType::Tick, Vec::new()));
+            stream.add_event(streams::Event::new(1.0, 2.0,  streams::BaseEventType::Tick, Vec::new()));
             self.add_subscriber(stream);
           }
           "beats" => {
@@ -280,11 +281,13 @@ impl Clock {
               },
               Err(_) => {}
           }
-
           for sub in &mut self.subscribers {
-            sub.notify_tick(self.session_state.beat_at_time(
-              self.link.clock_micros(), self.quantum), 
+            let beat = self.session_state.beat_at_time(self.link.clock_micros(), self.quantum);
+            let bar = beat / self.quantum;
+            sub.notify_tick(
               self.quantum as f64,
+              beat,
+              bar,
             );
           }
           if !self.is_running() {

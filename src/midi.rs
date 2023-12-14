@@ -46,3 +46,104 @@ pub fn setup_midi_connection() -> MidiOutputConnection {
         }
     }
 }
+
+
+pub enum MidiMessage {
+    NoteOn(u8, u8, u8),
+    NoteOff(u8, u8),
+    ControlChange(u8, u8, u8),
+    ProgramChange(u8, u8),
+    PitchBend(u8, u8),
+    Aftertouch(u8, u8, u8),
+    MidiClock,
+    MidiStart,
+    MidiContinue,
+    MidiStop,
+    Reset,
+}
+
+pub struct MidiConnexion {
+    conn_out: MidiOutputConnection,
+}
+
+impl MidiConnexion {
+    pub fn new() -> Self {
+        MidiConnexion {
+            conn_out: setup_midi_connection(),
+        }
+    }
+
+    pub fn send(&mut self, message_type: MidiMessage) -> Result<(), Box<dyn Error>> {
+        let _ = match message_type {
+            MidiMessage::NoteOn(note, velocity, channel) => self.note_on(note, velocity, channel),
+            MidiMessage::NoteOff(note, channel) => self.note_off(note, channel),
+            MidiMessage::ControlChange(control, value, channel) => self.control_change(control, value, channel),
+            MidiMessage::MidiClock => self.midi_clock(),
+            MidiMessage::MidiStart => self.midi_clock_start(),
+            MidiMessage::MidiContinue => self.midi_clock_continue(),
+            MidiMessage::MidiStop => self.midi_clock_stop(),
+            MidiMessage::ProgramChange(program, channel) => self.program_change(program, channel),
+            MidiMessage::PitchBend(pitch, channel) => self.pitch_bend(pitch, channel),
+            MidiMessage::Aftertouch(note, value, channel) => self.aftertouch(note, value, channel),
+            MidiMessage::Reset => self.reset(),
+        };
+        Ok(())
+    }
+
+    fn note_on(&mut self, note: u8, velocity: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0x90 | channel, note, velocity])?;
+        Ok(())
+    }
+
+    fn note_off(&mut self, note: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0x80 | channel, note, 0])?;
+        Ok(())
+    }
+
+    fn control_change(&mut self, control: u8, value: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xB0 | channel, control, value])?;
+        Ok(())
+    }
+
+    fn program_change(&mut self, program: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xC0 | channel, program])?;
+        Ok(())
+    }
+
+    fn pitch_bend(&mut self, value: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xE0 | channel, value])?;
+        Ok(())
+    }
+
+    fn aftertouch(&mut self, note: u8, value: u8, channel: u8) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xA0 | channel, note, value])?;
+        Ok(())
+    }
+
+
+    fn midi_clock(&mut self) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xF8])?;
+        Ok(())
+    }
+
+    fn midi_clock_start(&mut self) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xFA])?;
+        Ok(())
+    }
+
+    fn midi_clock_stop(&mut self) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xFC])?;
+        Ok(())
+    }
+
+    fn midi_clock_continue(&mut self) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xFB])?;
+        Ok(())
+    }
+
+    fn reset(&mut self) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&[0xFF])?;
+        Ok(())
+    }
+
+}
