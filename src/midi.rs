@@ -67,6 +67,7 @@ pub enum MidiMessage {
     ProgramChange(u8, u8),
     PitchBend(u8, u8),
     Aftertouch(u8, u8, u8),
+    Sysex(Vec<u8>),
     MidiClock,
     MidiStart,
     MidiContinue,
@@ -98,7 +99,14 @@ impl MidiConnexion {
             MidiMessage::PitchBend(pitch, channel) => self.pitch_bend(pitch, channel),
             MidiMessage::Aftertouch(note, value, channel) => self.aftertouch(note, value, channel),
             MidiMessage::Reset => self.reset(),
+            MidiMessage::Sysex(message) => self.send_sysex(message)
         };
+
+        Ok(())
+    }
+
+    fn send_sysex(&mut self, message: Vec<u8>) -> Result<(), Box<dyn Error>> {
+        self.conn_out.send(&message)?;
         Ok(())
     }
 
