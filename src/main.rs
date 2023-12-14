@@ -19,8 +19,8 @@ use crate::midi::MidiConnexion;
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", ascii::BANNER);
-    let _cfg: config::EremitConfig = confy::load("eremit", None)?;
-    let midi: Arc<Mutex<MidiConnexion>> = Arc::new(Mutex::new(midi::MidiConnexion::new()));
+    let cfg: config::EremitConfig = confy::load("eremit", None)?;
+    let midi: Arc<Mutex<MidiConnexion>> = Arc::new(Mutex::new(midi::MidiConnexion::new(cfg.port)));
     let (sender_to_clock, receiver_for_clock) = mpsc::channel::<clock::ClockControlMessage>();
     let (sender_from_clock, receiver_for_main) = mpsc::channel::<clock::ClockControlMessage>();
     let receiver_for_main = Arc::new(Mutex::new(receiver_for_main));

@@ -3,10 +3,22 @@ use std::io::{stdin, stdout, Write};
 use std::error::Error;
 use std::result::Result as StdResult;
 
-pub fn _setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
+pub fn _setup_midi(port: String) -> StdResult<MidiOutputConnection, Box<dyn Error>> {
     let midi_out = MidiOutput::new("My Test Output")?;
     // Get an output port (read from console if multiple are available)
     let out_ports = midi_out.ports();
+
+    // Check if port is in the list of out_ports
+    if port != "" {
+        for (i, p) in out_ports.iter().enumerate() {
+            if midi_out.port_name(p).unwrap() == port {
+                println!("Choosing the config selected port: {}", midi_out.port_name(p).unwrap());
+                return Ok(midi_out.connect(p, "midir-test")?);
+            }
+        }
+        return Err("port not found".into());
+    }
+
     let out_port: &MidiOutputPort = match out_ports.len() {
         0 => return Err("no output port found".into()),
         1 => {
@@ -36,9 +48,9 @@ pub fn _setup_midi() -> StdResult<MidiOutputConnection, Box<dyn Error>> {
   Ok(conn_out)
 }
 
-pub fn setup_midi_connection() -> MidiOutputConnection {
+pub fn setup_midi_connection(port: String) -> MidiOutputConnection {
     loop {
-        match _setup_midi() {
+        match _setup_midi(port.clone()) {
             Ok(connection) => return connection,
             Err(err) => {
                 println!("Error: {}", err);
@@ -67,9 +79,9 @@ pub struct MidiConnexion {
 }
 
 impl MidiConnexion {
-    pub fn new() -> Self {
+    pub fn new(port: String) -> Self {
         MidiConnexion {
-            conn_out: setup_midi_connection(),
+            conn_out: setup_midi_connection(port),
         }
     }
 
