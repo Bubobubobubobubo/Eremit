@@ -23,47 +23,45 @@ impl Interpreter {
     }
 
     pub fn run(&mut self) -> LuaResult<()> {
-        let globals = self.lua.globals();
-        let exit_clone = self.exit.clone();
-
-        let quit = self.lua.create_function(move |_, ()| -> LuaResult<()> {
-            let mut exit = exit_clone.lock().unwrap();
-            *exit = true;
-            Ok(())
-        })?;
-        globals.set("exit", quit)?;
         loop {
-             let prompt = "=> ";
-
-             while !*self.exit.lock().unwrap() {
-                 let mut line = String::new();
-                 match self.editor.readline(prompt) {
-                     Ok(input) => line.push_str(&input),
-                     Err(_) => {},
-                 }
-                 match self.lua.load(&line).eval::<MultiValue>() {
-                     Ok(values) => {
-                         self.editor.add_history_entry(line.clone()).unwrap();
-                         println!(
-                             "{}",
-                             values
-                                 .iter()
-                                 .map(|value| format!("{:#?}", value))
-                                 .collect::<Vec<_>>()
-                                 .join("\t")
-                         );
-                         continue;
-                     }
-                     Err(e) => {
-                         eprintln!("error: {}", e);
-                         continue;
-                     }
-                 }
-             }
-             if *self.exit.lock().unwrap() {
-                 return Ok(());
-             }
-         }
+            let mut prompt = "> ";
+            let mut line = String::new();
+    
+            loop {
+                match self.editor.readline(prompt) {
+                    Ok(input) => line.push_str(&input),
+                    Err(_) => return Ok(()),
+                }
+    
+                match self.lua.load(&line).eval::<MultiValue>() {
+                    Ok(values) => {
+                        self.editor.add_history_entry(line).unwrap();
+                        println!(
+                            "{}",
+                            values
+                                .iter()
+                                .map(|value| format!("{:#?}", value))
+                                .collect::<Vec<_>>()
+                                .join("\t")
+                        );
+                        break;
+                    }
+                    Err(mlua::Error::SyntaxError {
+                        incomplete_input: true,
+                        ..
+                    }) => {
+                        // continue reading input and append it to `line`
+                        line.push_str("\n"); // separate input lines
+                        prompt = ">> ";
+                    }
+                    Err(e) => {
+                        eprintln!("error: {}", e);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn register_function<'lua, F, A, R>(&'lua self, name: &str, function: F) -> LuaResult<()>

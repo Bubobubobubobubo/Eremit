@@ -191,6 +191,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
     // This is a test event that should repeat every bar
+    // let _ = interpreter.run();
     let _ = interpreter.run();
     println!("{}", ascii::GOODBYE);
     Ok(())
